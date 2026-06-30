@@ -49,6 +49,7 @@ export default function SetupClient() {
   const [customPrinterName, setCustomPrinterName] = useState('HP DeskJet 5275');
   const [customPrinterIp, setCustomPrinterIp] = useState('');
   const [isManualIp, setIsManualIp] = useState(false);
+  const [networkInterfaces, setNetworkInterfaces] = useState<{ name: string; ip: string }[]>([]);
 
   // Step 2 states
   const [envPinConfigured, setEnvPinConfigured] = useState(false);
@@ -70,6 +71,7 @@ export default function SetupClient() {
         const data = await res.json();
         setDiscoveredPrinters(data.discoveredPrinters || []);
         setEnvPinConfigured(data.envPinConfigured || false);
+        setNetworkInterfaces(data.networkInterfaces || []);
 
         // Auto-select HP DeskJet 5275 if found
         if (data.discoveredPrinters && data.discoveredPrinters.length > 0 && !selectedPrinter) {
@@ -319,6 +321,23 @@ export default function SetupClient() {
                           <RefreshCw className="w-4 h-4 text-slate-500" />
                         </div>
                         <span className="text-xs text-slate-500 font-medium">Searching subnet...</span>
+                        
+                        {networkInterfaces.length > 0 && (
+                          <div className="mt-3 text-left w-full max-w-[280px] bg-slate-950/80 p-2.5 rounded-lg border border-slate-850/80">
+                            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                              Scanning Network Adapters:
+                            </span>
+                            <div className="space-y-0.5 max-h-[80px] overflow-y-auto font-mono text-[9px] text-slate-450">
+                              {networkInterfaces.map(iface => (
+                                <div key={iface.name} className="flex justify-between">
+                                  <span className="text-indigo-400">{iface.name}:</span>
+                                  <span>{iface.ip}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
                         <span className="text-[10px] text-slate-500 mt-2.5 max-w-[280px] leading-relaxed">
                           Ensure the printer is online and on the same Wi-Fi network. If discovery fails, your router may be blocking multicast packets. Switch to the <strong>Manual IP</strong> tab above to configure it directly.
                         </span>

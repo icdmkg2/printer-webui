@@ -1,15 +1,30 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import os from 'os';
 import { isSetupCompleted, setSetting } from '@/lib/db';
 import { PrinterDiscovery } from '@/lib/discovery';
 
 export async function GET() {
   try {
     const discovery = PrinterDiscovery.getInstance();
+    
+    // Scan local network interfaces (IPv4, non-internal)
+    const interfaces = os.networkInterfaces();
+    const networkInterfaces: { name: string; ip: string }[] = [];
+    for (const [name, info] of Object.entries(interfaces)) {
+      if (!info) continue;
+      for (const addr of info) {
+        if (addr.family === 'IPv4' && !addr.internal) {
+          networkInterfaces.push({ name, ip: addr.address });
+        }
+      }
+    }
+
     return NextResponse.json({
       setupCompleted: isSetupCompleted(),
       discoveredPrinters: discovery.getDiscoveredPrinters(),
       envPinConfigured: !!process.env.APP_PIN,
+      networkInterfaces,
     });
   } catch (error) {
     console.error('Setup GET Error:', error);
