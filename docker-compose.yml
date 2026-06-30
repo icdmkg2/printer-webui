@@ -10,7 +10,6 @@ services:
     # Use host network mode so Bonjour service mDNS packets bypass Docker bridge network blocks
     network_mode: host
     environment:
-      - APP_PIN=1234
       - PRINTER_NAME=HP DeskJet 5275
       - DATABASE_PATH=/app/data/printer.db
       - PORT=3000

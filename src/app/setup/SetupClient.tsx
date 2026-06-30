@@ -13,11 +13,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-  InputOTP,
-  InputOTPGroup,
-  InputOTPSlot,
-} from '@/components/ui/input-otp';
-import {
   Printer,
   Search,
   Lock,
@@ -29,7 +24,6 @@ import {
   Wifi,
   XCircle,
   Sparkles,
-  Delete,
 } from 'lucide-react';
 
 interface DiscoveredPrinter {
@@ -430,62 +424,33 @@ export default function SetupClient() {
             </CardHeader>
             <CardContent className="space-y-6 flex flex-col items-center justify-center">
               {pinError && (
-                <div className="w-full p-2.5 rounded-lg bg-red-950/40 border border-red-900 text-red-400 text-[11px] flex items-center gap-2">
+                <div className="w-full p-2.5 rounded-lg bg-red-950/40 border border-red-900 text-red-450 text-[11px] flex items-center gap-2">
                   <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
                   <span>{pinError}</span>
                 </div>
               )}
 
-              {/* Input OTP Display */}
-              <div className="flex justify-center py-2 scale-110">
-                <InputOTP
+              {/* Simple Standard Password/Numeric Input */}
+              <div className="w-full max-w-[200px] py-2">
+                <Input
+                  type="password"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   maxLength={4}
                   value={isConfirming ? confirmPin : pin}
-                  readOnly
-                  disabled
-                >
-                  <InputOTPGroup className="gap-2.5">
-                    <InputOTPSlot index={0} className="w-12 h-14 bg-slate-950 border-slate-800 text-slate-100 text-xl font-bold rounded-xl" />
-                    <InputOTPSlot index={1} className="w-12 h-14 bg-slate-950 border-slate-800 text-slate-100 text-xl font-bold rounded-xl" />
-                    <InputOTPSlot index={2} className="w-12 h-14 bg-slate-950 border-slate-800 text-slate-100 text-xl font-bold rounded-xl" />
-                    <InputOTPSlot index={3} className="w-12 h-14 bg-slate-950 border-slate-800 text-slate-100 text-xl font-bold rounded-xl" />
-                  </InputOTPGroup>
-                </InputOTP>
-              </div>
-
-              {/* Dial Pad Grid */}
-              <div className="w-full max-w-[280px] grid grid-cols-3 gap-3">
-                {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((num) => (
-                  <button
-                    key={num}
-                    type="button"
-                    onClick={() => handleKeypadPress(num)}
-                    className="h-12 rounded-xl bg-slate-950 border border-slate-850 hover:bg-slate-800 hover:border-slate-700 active:scale-95 text-slate-200 font-bold text-lg transition-all flex items-center justify-center cursor-pointer shadow-sm"
-                  >
-                    {num}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => handleKeypadPress('clear')}
-                  className="h-12 rounded-xl bg-slate-950/40 border border-slate-850 text-slate-400 hover:bg-red-950/30 hover:border-red-900/40 hover:text-red-400 active:scale-95 font-medium text-xs transition-all flex items-center justify-center cursor-pointer uppercase tracking-wider"
-                >
-                  Clear
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleKeypadPress('0')}
-                  className="h-12 rounded-xl bg-slate-950 border border-slate-850 hover:bg-slate-800 hover:border-slate-700 active:scale-95 text-slate-200 font-bold text-lg transition-all flex items-center justify-center cursor-pointer shadow-sm"
-                >
-                  0
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleKeypadPress('backspace')}
-                  className="h-12 rounded-xl bg-slate-950/40 border border-slate-850 text-slate-400 hover:bg-slate-800 hover:text-slate-100 active:scale-95 transition-all flex items-center justify-center cursor-pointer"
-                >
-                  <Delete className="w-4 h-4" />
-                </button>
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/[^0-9]/g, ''); // numbers only
+                    if (isConfirming) {
+                      setConfirmPin(val);
+                    } else {
+                      setPin(val);
+                    }
+                    setPinError('');
+                  }}
+                  autoFocus
+                  placeholder="••••"
+                  className="bg-slate-950 border-slate-850 text-slate-100 text-3xl font-extrabold text-center h-14 tracking-[0.6em] pl-[0.6em] rounded-xl focus-visible:ring-indigo-500 focus-visible:border-indigo-500"
+                />
               </div>
             </CardContent>
             <CardFooter className="flex items-center justify-between border-t border-slate-850/60 pt-4">

@@ -10,12 +10,8 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import {
-  InputOTP,
-  InputOTPGroup,
-  InputOTPSlot,
-} from '@/components/ui/input-otp';
-import { Lock, Delete, RefreshCw, AlertCircle } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Lock, RefreshCw, AlertCircle } from 'lucide-react';
 
 export default function LoginClient() {
   const router = useRouter();
@@ -62,23 +58,6 @@ export default function LoginClient() {
     }
   };
 
-  const handleKeypadPress = (val: string) => {
-    if (loading) return;
-
-    if (val === 'backspace') {
-      setPin(prev => prev.slice(0, -1));
-      setError('');
-    } else if (val === 'clear') {
-      setPin('');
-      setError('');
-    } else {
-      if (pin.length < 4) {
-        setPin(prev => prev + val);
-        setError('');
-      }
-    }
-  };
-
   return (
     <div className="relative min-h-screen w-full flex items-center justify-center p-4 bg-slate-950 overflow-hidden">
       {/* Background glow overlay */}
@@ -103,21 +82,24 @@ export default function LoginClient() {
               </div>
             )}
 
-            {/* Input OTP Slots */}
-            <div className="flex justify-center py-2 scale-110">
-              <InputOTP
+            {/* Simple Standard Password/Numeric Input */}
+            <div className="w-full max-w-[200px] py-2">
+              <Input
+                type="password"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 maxLength={4}
                 value={pin}
-                readOnly
-                disabled
-              >
-                <InputOTPGroup className="gap-2.5">
-                  <InputOTPSlot index={0} className="w-12 h-14 bg-slate-950 border-slate-800 text-slate-100 text-xl font-bold rounded-xl" />
-                  <InputOTPSlot index={1} className="w-12 h-14 bg-slate-950 border-slate-800 text-slate-100 text-xl font-bold rounded-xl" />
-                  <InputOTPSlot index={2} className="w-12 h-14 bg-slate-950 border-slate-800 text-slate-100 text-xl font-bold rounded-xl" />
-                  <InputOTPSlot index={3} className="w-12 h-14 bg-slate-950 border-slate-800 text-slate-100 text-xl font-bold rounded-xl" />
-                </InputOTPGroup>
-              </InputOTP>
+                onChange={(e) => {
+                  const val = e.target.value.replace(/[^0-9]/g, ''); // numbers only
+                  setPin(val);
+                  setError('');
+                }}
+                disabled={loading}
+                autoFocus
+                placeholder="••••"
+                className="bg-slate-950 border-slate-850 text-slate-100 text-3xl font-extrabold text-center h-14 tracking-[0.6em] pl-[0.6em] rounded-xl focus-visible:ring-indigo-500 focus-visible:border-indigo-500"
+              />
             </div>
 
             {loading && (
@@ -126,45 +108,6 @@ export default function LoginClient() {
                 Authenticating PIN...
               </div>
             )}
-
-            {/* Dial Pad Numeric Keypad */}
-            <div className="w-full max-w-[280px] grid grid-cols-3 gap-3">
-              {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((num) => (
-                <button
-                  key={num}
-                  type="button"
-                  disabled={loading}
-                  onClick={() => handleKeypadPress(num)}
-                  className="h-12 rounded-xl bg-slate-950 border border-slate-850 hover:bg-slate-800 hover:border-slate-700 active:scale-95 text-slate-200 font-bold text-lg transition-all flex items-center justify-center cursor-pointer shadow-sm disabled:opacity-50"
-                >
-                  {num}
-                </button>
-              ))}
-              <button
-                type="button"
-                disabled={loading}
-                onClick={() => handleKeypadPress('clear')}
-                className="h-12 rounded-xl bg-slate-950/40 border border-slate-855 text-slate-400 hover:bg-red-950/30 hover:border-red-900/40 hover:text-red-400 active:scale-95 font-medium text-xs transition-all flex items-center justify-center cursor-pointer uppercase tracking-wider"
-              >
-                Clear
-              </button>
-              <button
-                type="button"
-                disabled={loading}
-                onClick={() => handleKeypadPress('0')}
-                className="h-12 rounded-xl bg-slate-950 border border-slate-850 hover:bg-slate-800 hover:border-slate-700 active:scale-95 text-slate-200 font-bold text-lg transition-all flex items-center justify-center cursor-pointer shadow-sm disabled:opacity-50"
-              >
-                0
-              </button>
-              <button
-                type="button"
-                disabled={loading}
-                onClick={() => handleKeypadPress('backspace')}
-                className="h-12 rounded-xl bg-slate-950/40 border border-slate-855 text-slate-400 hover:bg-slate-800 hover:text-slate-100 active:scale-95 transition-all flex items-center justify-center cursor-pointer"
-              >
-                <Delete className="w-4 h-4" />
-              </button>
-            </div>
           </CardContent>
           <CardFooter className="text-center justify-center pb-6">
             <span className="text-[10px] text-slate-500 font-mono tracking-wider">
