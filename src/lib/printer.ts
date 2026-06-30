@@ -13,55 +13,32 @@ async function convertPdfToPrintFormat(pdfBuffer: Buffer): Promise<{ data: Buffe
     const tempDir = os.tmpdir();
     const uniqId = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const inputPath = path.join(tempDir, `print_${uniqId}.pdf`);
-    const outputPath = path.join(tempDir, `print_${uniqId}.pclm`);
+    const outputPath = path.join(tempDir, `print_${uniqId}.pwg`);
 
     fs.writeFileSync(inputPath, pdfBuffer);
 
-    // Try converting to PCLm first
-    const cmd = `gs -dNOPAUSE -dBATCH -sDEVICE=pclm -sOutputFile="${outputPath}" "${inputPath}"`;
+    // Convert PDF directly to PWG Raster at 300 DPI (standard printing resolution)
+    const cmd = `gs -dNOPAUSE -dBATCH -sDEVICE=pwgraster -r300 -sOutputFile="${outputPath}" "${inputPath}"`;
     
     exec(cmd, (err, stdout, stderr) => {
+      // Clean up input PDF
+      try { fs.unlinkSync(inputPath); } catch {}
+
       if (!err && fs.existsSync(outputPath)) {
         try {
           const buffer = fs.readFileSync(outputPath);
-          // Cleanup files
-          try { fs.unlinkSync(inputPath); } catch {}
+          // Cleanup output file
           try { fs.unlinkSync(outputPath); } catch {}
-          console.log('IPP: Successfully converted PDF to application/PCLm using Ghostscript.');
-          return resolve({ data: buffer, format: 'application/PCLm' });
+          console.log('IPP: Successfully converted PDF to image/pwg-raster at 300 DPI using Ghostscript.');
+          return resolve({ data: buffer, format: 'image/pwg-raster' });
         } catch (readErr) {
           // Fall through
         }
       }
 
-      console.warn('IPP: PCLm conversion failed or not available. Trying PWG Raster fallback...');
-      const fallbackPath = path.join(tempDir, `print_${uniqId}.pwg`);
-      const fallbackCmd = `gs -dNOPAUSE -dBATCH -sDEVICE=pwgraster -sOutputFile="${fallbackPath}" "${inputPath}"`;
-      
-      exec(fallbackCmd, (fbErr, fbStdout, fbStderr) => {
-        // Clean up input PDF
-        try { fs.unlinkSync(inputPath); } catch {}
-
-        if (fbErr) {
-          console.error('IPP: PWG Raster conversion failed:', fbErr);
-          // If BOTH conversions fail, return original PDF
-          console.warn('IPP: All conversions failed. Falling back to raw application/pdf.');
-          return resolve({ data: pdfBuffer, format: 'application/pdf' });
-        }
-
-        try {
-          if (fs.existsSync(fallbackPath)) {
-            const buffer = fs.readFileSync(fallbackPath);
-            try { fs.unlinkSync(fallbackPath); } catch {}
-            console.log('IPP: Successfully converted PDF to image/pwg-raster using Ghostscript.');
-            return resolve({ data: buffer, format: 'image/pwg-raster' });
-          }
-        } catch (readErr) {
-          // Fall through
-        }
-
-        resolve({ data: pdfBuffer, format: 'application/pdf' });
-      });
+      console.error('IPP: PWG Raster conversion failed:', err);
+      console.warn('IPP: Falling back to raw application/pdf.');
+      resolve({ data: pdfBuffer, format: 'application/pdf' });
     });
   });
 }
