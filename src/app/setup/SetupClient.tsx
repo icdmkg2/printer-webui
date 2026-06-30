@@ -319,8 +319,8 @@ export default function SetupClient() {
                           <RefreshCw className="w-4 h-4 text-slate-500" />
                         </div>
                         <span className="text-xs text-slate-500 font-medium">Searching subnet...</span>
-                        <span className="text-[10px] text-slate-600 mt-1 max-w-[250px]">
-                          Ensure your printer is online, connected to Wi-Fi, and supports IPP.
+                        <span className="text-[10px] text-slate-500 mt-2.5 max-w-[280px] leading-relaxed">
+                          Ensure the printer is online and on the same Wi-Fi network. If discovery fails, your router may be blocking multicast packets. Switch to the <strong>Manual IP</strong> tab above to configure it directly.
                         </span>
                       </div>
                     ) : (
