@@ -69,8 +69,9 @@ export async function POST(request: Request) {
     // Mark setup as complete in DB
     setSetting('setup_completed', 'true');
 
-    // Log the user in
-    cookieStore.set('printer_session', 'authenticated', {
+    // Log the user in directly on the NextResponse response
+    const response = NextResponse.json({ success: true });
+    response.cookies.set('printer_session', 'authenticated', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
@@ -78,7 +79,7 @@ export async function POST(request: Request) {
       path: '/',
     });
 
-    return NextResponse.json({ success: true });
+    return response;
   } catch (error) {
     console.error('Setup POST Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

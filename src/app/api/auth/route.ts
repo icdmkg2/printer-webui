@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { getAppPin } from '@/lib/db';
 
 export async function POST(request: Request) {
@@ -17,17 +16,16 @@ export async function POST(request: Request) {
     }
 
     if (pin === correctPin) {
-      // Set session cookie
-      const cookieStore = await cookies();
-      cookieStore.set('printer_session', 'authenticated', {
+      // Set session cookie directly on NextResponse
+      const response = NextResponse.json({ success: true });
+      response.cookies.set('printer_session', 'authenticated', {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'strict',
         maxAge: 60 * 60 * 24 * 7, // 1 week
         path: '/',
       });
-
-      return NextResponse.json({ success: true });
+      return response;
     }
 
     return NextResponse.json({ error: 'Incorrect PIN' }, { status: 401 });
@@ -39,9 +37,12 @@ export async function POST(request: Request) {
 
 export async function DELETE() {
   try {
-    const cookieStore = await cookies();
-    cookieStore.delete('printer_session');
-    return NextResponse.json({ success: true });
+    const response = NextResponse.json({ success: true });
+    response.cookies.set('printer_session', '', {
+      path: '/',
+      maxAge: 0,
+    });
+    return response;
   } catch (error) {
     console.error('Logout API Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
