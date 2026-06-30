@@ -20,7 +20,7 @@ export async function POST(request: Request) {
       const response = NextResponse.json({ success: true });
       response.cookies.set('printer_session', 'authenticated', {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        secure: false, // Must be false for local IP HTTP access
         sameSite: 'strict',
         maxAge: 60 * 60 * 24 * 7, // 1 week
         path: '/',
