@@ -3,6 +3,8 @@ import { cookies } from 'next/headers';
 import { isSetupCompleted } from '@/lib/db';
 import LoginClient from './LoginClient';
 
+export const dynamic = 'force-dynamic';
+
 export default async function LoginPage() {
   // Guard 1: If setup is not done, force wizard configuration
   if (!isSetupCompleted()) {
