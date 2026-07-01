@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getPrintJobs, insertPrintJob, updatePrintJobStatus } from '@/lib/db';
 import { PrinterDiscovery } from '@/lib/discovery';
-import { printPdf } from '@/lib/printer';
+import { printPdf, checkPdfSecurity, decryptPdf } from '@/lib/printer';
 
 async function checkAuth(): Promise<boolean> {
   const cookieStore = await cookies();
@@ -43,7 +43,68 @@ export async function POST(request: Request) {
 
     // Convert file to Buffer
     const arrayBuffer = await file.arrayBuffer();
-    const pdfBuffer = Buffer.from(arrayBuffer);
+    let pdfBuffer: any = Buffer.from(arrayBuffer);
+
+    // 1. PDF Security Verification
+    const password = formData.get('password') as string | null;
+    const passwordsJson = formData.get('passwords') as string | null;
+
+    let workingPassword: string | undefined;
+    let isEncrypted = false;
+    let isUnlocked = false;
+
+    // Check with the single password first (if provided)
+    if (password) {
+      const security = checkPdfSecurity(pdfBuffer, password);
+      isEncrypted = security.encrypted;
+      if (security.unlocked) {
+        isUnlocked = true;
+        workingPassword = password;
+      }
+    } else {
+      // Check if the PDF is encrypted at all
+      const security = checkPdfSecurity(pdfBuffer);
+      isEncrypted = security.encrypted;
+      isUnlocked = security.unlocked;
+    }
+
+    // Try list of saved passwords if encrypted and not unlocked yet
+    if (isEncrypted && !isUnlocked && passwordsJson) {
+      try {
+        const savedPasswords: string[] = JSON.parse(passwordsJson);
+        if (Array.isArray(savedPasswords)) {
+          for (const pwd of savedPasswords) {
+            if (!pwd) continue;
+            const security = checkPdfSecurity(pdfBuffer, pwd);
+            if (security.unlocked) {
+              isUnlocked = true;
+              workingPassword = pwd;
+              break;
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Error parsing saved passwords:', err);
+      }
+    }
+
+    // Ask for password if encrypted and not unlocked
+    if (isEncrypted && !isUnlocked) {
+      return NextResponse.json({
+        error: 'password_required',
+        message: password ? 'Incorrect PDF password' : 'This PDF file is password protected',
+      }, { status: 400 });
+    }
+
+    // Decrypt if unlocked
+    if (isEncrypted && workingPassword) {
+      try {
+        pdfBuffer = await decryptPdf(pdfBuffer, workingPassword);
+        console.log(`IPP: Decrypted password-protected PDF "${filename}" successfully.`);
+      } catch (decErr: any) {
+        return NextResponse.json({ error: `Decryption failed: ${decErr.message}` }, { status: 400 });
+      }
+    }
 
     // Get Printer IP
     const discovery = PrinterDiscovery.getInstance();
@@ -62,7 +123,7 @@ export async function POST(request: Request) {
       // Send print command to printer
       await printPdf(printerIp, pdfBuffer, filename);
       updatePrintJobStatus(jobId, 'Success');
-      return NextResponse.json({ success: true, jobId });
+      return NextResponse.json({ success: true, jobId, workingPasswordUsed: workingPassword });
     } catch (printError: any) {
       console.error('Printing operation failed:', printError);
       updatePrintJobStatus(jobId, `Failed: ${printError.message || 'IPP Error'}`);

@@ -1,8 +1,93 @@
 import ipp from 'ipp';
-import { exec } from 'child_process';
+import { exec, execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+
+export interface PdfSecurityStatus {
+  encrypted: boolean;
+  unlocked: boolean;
+}
+
+/**
+ * Checks if a PDF buffer is password-protected, and optionally tests if a given password unlocks it.
+ */
+export function checkPdfSecurity(pdfBuffer: Buffer, password?: string): PdfSecurityStatus {
+  const tempDir = os.tmpdir();
+  const uniqId = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const inputPath = path.join(tempDir, `check_${uniqId}.pdf`);
+
+  fs.writeFileSync(inputPath, pdfBuffer);
+
+  try {
+    // 1. Try opening it without any password
+    try {
+      execSync(`gs -dNOPAUSE -dBATCH -sDEVICE=nullpage "${inputPath}"`, { stdio: 'ignore' });
+      // Success: PDF is not encrypted or doesn't require a password
+      return { encrypted: false, unlocked: true };
+    } catch (err) {
+      // Failed: PDF is encrypted and requires a password, or is corrupted.
+      if (password) {
+        const escapedPassword = `'${password.replace(/'/g, "'\\''")}'`;
+        try {
+          execSync(`gs -dNOPAUSE -dBATCH -sDEVICE=nullpage -sPDFPassword=${escapedPassword} "${inputPath}"`, { stdio: 'ignore' });
+          // Success: PDF is encrypted but the password unlocked it
+          return { encrypted: true, unlocked: true };
+        } catch (pwErr) {
+          // Password incorrect
+          return { encrypted: true, unlocked: false };
+        }
+      }
+      return { encrypted: true, unlocked: false };
+    }
+  } catch (globalErr) {
+    console.error('PDF Security check exception:', globalErr);
+    return { encrypted: false, unlocked: true }; // Fallback to print attempt
+  } finally {
+    try { fs.unlinkSync(inputPath); } catch {}
+  }
+}
+
+/**
+ * Decrypts a password-protected PDF buffer into a standard decrypted PDF buffer.
+ */
+export async function decryptPdf(pdfBuffer: Buffer, password: string): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const tempDir = os.tmpdir();
+    const uniqId = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const inputPath = path.join(tempDir, `enc_${uniqId}.pdf`);
+    const outputPath = path.join(tempDir, `dec_${uniqId}.pdf`);
+
+    fs.writeFileSync(inputPath, pdfBuffer);
+
+    const escapedPassword = `'${password.replace(/'/g, "'\\''")}'`;
+    const cmd = `gs -dNOPAUSE -dBATCH -sDEVICE=pdfwrite -sPDFPassword=${escapedPassword} -sOutputFile="${outputPath}" "${inputPath}"`;
+
+    exec(cmd, (err, stdout, stderr) => {
+      // Clean up input PDF
+      try { fs.unlinkSync(inputPath); } catch {}
+
+      if (err) {
+        console.error('Ghostscript Decryption Error:', err);
+        // Clean up output if any
+        try { fs.unlinkSync(outputPath); } catch {}
+        reject(new Error('Failed to decrypt PDF. Verify the password.'));
+      } else {
+        try {
+          if (fs.existsSync(outputPath)) {
+            const buffer = fs.readFileSync(outputPath);
+            try { fs.unlinkSync(outputPath); } catch {}
+            resolve(buffer);
+          } else {
+            reject(new Error('Decrypted output file was not created.'));
+          }
+        } catch (readErr) {
+          reject(readErr);
+        }
+      }
+    });
+  });
+}
 
 /**
  * Converts a standard PDF buffer into a printer-supported format (application/PCLm or image/pwg-raster)

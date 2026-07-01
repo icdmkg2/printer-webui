@@ -18,6 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Input } from '@/components/ui/input';
 import {
   Printer,
   LogOut,
@@ -29,6 +30,7 @@ import {
   RefreshCw,
   RefreshCcw,
   Sparkles,
+  Lock,
 } from 'lucide-react';
 
 interface PrintJob {
@@ -70,6 +72,40 @@ export default function DashboardClient({
   // Action states
   const [reprintingId, setReprintingId] = useState<number | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
+
+  // Password protected PDF states
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+  const [pdfPassword, setPdfPassword] = useState('');
+  const [savePassword, setSavePassword] = useState(true);
+  const [pwdError, setPwdError] = useState('');
+
+  const getSavedPasswords = (): string[] => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const saved = localStorage.getItem('printgate_pdf_passwords');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const savePasswordToList = (pwd: string) => {
+    if (!pwd) return;
+    try {
+      const current = getSavedPasswords();
+      if (!current.includes(pwd)) {
+        const updated = [pwd, ...current].slice(0, 10); // store last 10 passwords
+        localStorage.setItem('printgate_pdf_passwords', JSON.stringify(updated));
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const maskPassword = (pwd: string): string => {
+    if (pwd.length <= 2) return '••';
+    return `${pwd.slice(0, 2)}•••`;
+  };
 
   // Fetch jobs list
   const fetchJobs = async () => {
@@ -163,14 +199,22 @@ export default function DashboardClient({
   };
 
   // Print Submission Handler
-  const handlePrintSubmit = async () => {
+  const handlePrintSubmit = async (overridePassword?: string) => {
     if (!selectedFile) return;
     setPrinting(true);
     setErrorMsg('');
     setSuccessMsg('');
+    setPwdError('');
 
     const formData = new FormData();
     formData.append('file', selectedFile);
+
+    if (overridePassword) {
+      formData.append('password', overridePassword);
+    }
+
+    const savedPasswords = getSavedPasswords();
+    formData.append('passwords', JSON.stringify(savedPasswords));
 
     try {
       const res = await fetch('/api/jobs', {
@@ -178,14 +222,31 @@ export default function DashboardClient({
         body: formData,
       });
 
+      const data = await res.json();
+
       if (res.ok) {
         setSuccessMsg('Document successfully transmitted to printer!');
         setSelectedFile(null);
         if (fileInputRef.current) fileInputRef.current.value = '';
+        setPasswordModalOpen(false);
+        setPdfPassword('');
+
+        if (overridePassword && savePassword) {
+          savePasswordToList(overridePassword);
+        } else if (data.workingPasswordUsed && savePassword) {
+          savePasswordToList(data.workingPasswordUsed);
+        }
+
         fetchJobs();
       } else {
-        const data = await res.json();
-        setErrorMsg(data.error || 'transmitting document failed.');
+        if (data.error === 'password_required') {
+          setPasswordModalOpen(true);
+          if (overridePassword) {
+            setPwdError('Incorrect PDF password. Please try again.');
+          }
+        } else {
+          setErrorMsg(data.error || 'transmitting document failed.');
+        }
       }
     } catch (err) {
       setErrorMsg('Network error occurred while submitting print job.');
@@ -339,7 +400,7 @@ export default function DashboardClient({
 
                 {/* Print Button */}
                 <Button
-                  onClick={handlePrintSubmit}
+                  onClick={() => handlePrintSubmit()}
                   disabled={!selectedFile || printing}
                   className="w-full bg-gradient-to-r from-indigo-500 to-violet-650 hover:from-indigo-600 hover:to-violet-750 text-white font-semibold text-xs py-5 rounded-xl shadow-lg shadow-indigo-500/10 transition-all flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-50 cursor-pointer"
                 >
@@ -459,6 +520,114 @@ export default function DashboardClient({
 
         </div>
       </main>
+
+      {/* Password Protected PDF Decryption Modal */}
+      {passwordModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-sm border border-slate-800 bg-slate-900/90 rounded-2xl p-6 shadow-2xl scale-95 animate-in zoom-in-95 duration-200">
+            <h3 className="text-base font-bold text-slate-100 mb-1 flex items-center gap-2">
+              <Lock className="w-4 h-4 text-indigo-400" />
+              Password Protected PDF
+            </h3>
+            <p className="text-xs text-slate-450 mb-4">
+              &quot;{selectedFile?.name}&quot; requires a password to unlock and rasterize.
+            </p>
+
+            {pwdError && (
+              <div className="mb-4 p-2.5 rounded-lg bg-red-950/40 border border-red-905 text-red-405 text-[11px] flex items-center gap-2">
+                <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                <span>{pwdError}</span>
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-[10px] font-bold text-slate-450 uppercase tracking-wider block mb-1">
+                  PDF Password
+                </label>
+                <Input
+                  type="password"
+                  placeholder="Enter file password"
+                  value={pdfPassword}
+                  onChange={(e) => {
+                    setPdfPassword(e.target.value);
+                    setPwdError('');
+                  }}
+                  autoFocus
+                  className="bg-slate-950 border-slate-850 text-slate-100 text-sm h-10 rounded-xl focus-visible:ring-indigo-500 focus-visible:border-indigo-500"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 py-1">
+                <input
+                  type="checkbox"
+                  id="save-pdf-pwd"
+                  checked={savePassword}
+                  onChange={(e) => setSavePassword(e.target.checked)}
+                  className="rounded border-slate-800 bg-slate-955 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-slate-900 w-3.5 h-3.5 cursor-pointer accent-indigo-500"
+                />
+                <label htmlFor="save-pdf-pwd" className="text-xs text-slate-300 select-none cursor-pointer">
+                  Save password for easy access
+                </label>
+              </div>
+
+              {/* Saved Passwords Quick Select */}
+              {getSavedPasswords().length > 0 && (
+                <div className="border-t border-slate-850/60 pt-3 mt-2">
+                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">
+                    Or select a saved password:
+                  </span>
+                  <div className="flex flex-wrap gap-1.5 max-h-[60px] overflow-y-auto custom-scrollbar">
+                    {getSavedPasswords().map((savedPwd, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          setPdfPassword(savedPwd);
+                          setPwdError('');
+                        }}
+                        className="text-[10px] px-2 py-1 rounded-md bg-slate-950 border border-slate-850 hover:bg-slate-800 hover:border-slate-700 text-slate-300 font-mono transition-all max-w-[120px] truncate cursor-pointer"
+                        title="Click to use this password"
+                      >
+                        {maskPassword(savedPwd)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-2.5 pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setPasswordModalOpen(false);
+                    setPdfPassword('');
+                    setPwdError('');
+                  }}
+                  className="flex-1 border-slate-800 hover:bg-slate-800 text-slate-200 text-xs h-10 rounded-xl cursor-pointer"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => handlePrintSubmit(pdfPassword)}
+                  disabled={printing || !pdfPassword}
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs h-10 rounded-xl cursor-pointer shadow-md shadow-indigo-600/10 flex items-center justify-center gap-1.5 disabled:opacity-50"
+                >
+                  {printing ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      Unlocking...
+                    </>
+                  ) : (
+                    <>Unlock &amp; Print</>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
